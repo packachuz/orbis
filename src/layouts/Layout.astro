@@ -1,0 +1,40 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'ORBIS — Map Your Planetary Radius',
+  description = 'ORBIS: Map Your Planetary Radius. Decode Your Orbs of Influence. A precision natal chart, aspect orb web and personalised horoscope engine.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#07080D" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title}</title>
+  </head>
+  <body>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      <div class="starfield absolute inset-0 opacity-60"></div>
+      <div class="absolute -top-40 left-1/2 h-[720px] w-[720px] -translate-x-1/2 rounded-full bg-astral/10 blur-[140px]"></div>
+      <div class="absolute top-[40%] -right-40 h-[520px] w-[520px] rounded-full bg-gold/5 blur-[120px]"></div>
+      <div class="absolute bottom-0 -left-40 h-[480px] w-[480px] rounded-full bg-[#1d2a5a]/30 blur-[120px]"></div>
+    </div>
+    <slot />
+  </body>
+</html>

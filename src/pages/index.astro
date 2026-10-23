@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import OrbisApp from '../components/OrbisApp';
+---
+
+<Layout>
+  <OrbisApp client:only="react">
+    <div slot="fallback" class="flex min-h-screen flex-col items-center justify-center gap-4">
+      <div class="h-16 w-16 animate-spin rounded-full border border-white/10 border-t-gold"></div>
+      <p class="font-mono text-[10px] uppercase tracking-[0.3em] text-gold/70">Aligning orbits…</p>
+    </div>
+  </OrbisApp>
+</Layout>

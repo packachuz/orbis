@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme {
+  --color-obsidian: #07080d;
+  --color-nebula: #0f121c;
+  --color-gold: #e5c158;
+  --color-gold-soft: #f3dc94;
+  --color-astral: #a78bfa;
+  --color-silver: #e2e8f0;
+  --color-emerald-orb: #34d399;
+  --color-cyan-orb: #38bdf8;
+  --color-crimson-orb: #f43f5e;
+
+  --font-serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --animate-spin-slow: spin 60s linear infinite;
+  --animate-spin-slower: spin 120s linear infinite;
+  --animate-spin-reverse: spin-reverse 90s linear infinite;
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-twinkle: twinkle 4s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2.4s ease-out infinite;
+
+  @keyframes spin-reverse {
+    to { transform: rotate(-360deg); }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 1; }
+  }
+  @keyframes pulse-ring {
+    0% { opacity: 0.8; transform: scale(0.85); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    background: var(--color-obsidian);
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-obsidian font-sans text-silver antialiased;
+    min-height: 100vh;
+  }
+  ::selection {
+    background: rgb(229 193 88 / 0.35);
+    color: #fff;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(1) saturate(3) hue-rotate(5deg);
+    cursor: pointer;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #07080d; }
+  ::-webkit-scrollbar-thumb { background: #1f2433; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2c3347; }
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md;
+    box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 20px 60px -30px rgb(0 0 0 / 0.8);
+  }
+  .glass-strong {
+    @apply rounded-2xl border border-white/10 bg-nebula/80 backdrop-blur-xl;
+  }
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-[0.28em] text-gold/80;
+  }
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-obsidian/60 px-3.5 py-2.5 text-sm text-silver placeholder:text-slate-500 outline-none transition;
+  }
+  .field:focus {
+    @apply border-gold/60;
+    box-shadow: 0 0 0 3px rgb(229 193 88 / 0.12);
+  }
+  .gold-text {
+    background: linear-gradient(120deg, #f8e7b0 0%, #e5c158 40%, #b8902f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .section-title {
+    @apply font-serif text-4xl font-semibold tracking-tight text-silver md:text-5xl;
+  }
+  .hairline {
+    background: linear-gradient(90deg, transparent, rgb(229 193 88 / 0.45), transparent);
+    height: 1px;
+  }
+}
+
+/* CTA orbital hover effect */
+.orbit-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.orbit-cta::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0 70%, rgb(255 244 210 / 0.9) 80%, transparent 90%);
+  opacity: 0;
+  transition: opacity 0.4s;
+  animation: spin 2.4s linear infinite;
+}
+.orbit-cta::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(120deg, #f3dc94, #e5c158 45%, #c79d3b);
+}
+.orbit-cta:hover::before { opacity: 1; }
+.orbit-cta:hover { box-shadow: 0 0 40px -6px rgb(229 193 88 / 0.65); }
+
+/* Starfield */
+.starfield {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgb(255 255 255 / 0.6), transparent),
+    radial-gradient(1px 1px at 120px 80px, rgb(255 255 255 / 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 200px 160px, rgb(229 193 88 / 0.5), transparent),
+    radial-gradient(1px 1px at 300px 40px, rgb(255 255 255 / 0.45), transparent),
+    radial-gradient(1px 1px at 380px 220px, rgb(167 139 250 / 0.5), transparent),
+    radial-gradient(1px 1px at 60px 260px, rgb(255 255 255 / 0.3), transparent);
+  background-size: 420px 300px;
+}
+
+.wheel-planet { transition: opacity 0.3s ease, transform 0.3s ease; }
+.aspect-line { transition: opacity 0.25s ease, stroke-width 0.25s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
