@@ -176,3 +176,126 @@ test('All 7 planetary positions are identically projected in both graphs for eve
     }
   }
 });
+
+test('User screenshot chart (2001-06-25 Bangkok) orientation and hemisphere verification', () => {
+  const chart = calculateNatalChart({
+    name: 'User Bug Screenshot Chart',
+    date: '2001-06-25',
+    time: '01:14',
+    unknownTime: false,
+    lat: 13.7563,
+    lng: 100.5018,
+    utcOffset: 7,
+    locationLabel: 'Bangkok',
+  });
+
+  // Verify ASC is Aries (~20°48') and MC is Capricorn (~15°52')
+  assert.equal(Math.floor(chart.asc / 30), 0, 'ASC is in Aries');
+  assert.equal(Math.floor(chart.mc / 30), 9, 'MC is in Capricorn');
+
+  // Ascendant angle in both projections must be 180° (9 o'clock)
+  const ascAngleNatal = lonToAngleDeg(chart.asc, chart.asc);
+  const ascAngleHero = orbitalPreviewTargetAngle(chart.asc, chart.asc);
+  assert.equal(ascAngleNatal, 180);
+  assert.equal(ascAngleHero, 180);
+
+  // MC angle must be in top hemisphere (~275°) in both projections
+  const mcAngleNatal = lonToAngleDeg(chart.mc, chart.asc);
+  const mcAngleHero = orbitalPreviewTargetAngle(chart.mc, chart.asc);
+  assert.ok(Math.abs(mcAngleNatal - mcAngleHero) < 1e-9);
+  assert.ok(Math.sin((mcAngleNatal * Math.PI) / 180) < 0, 'MC must be in top hemisphere (negative sin)');
+  assert.ok(Math.abs(mcAngleNatal - 275) < 15, 'MC is near 12 oclock (~275°)');
+
+  // IC angle must be in bottom hemisphere (~95°) in both projections
+  const icLon = norm360(chart.mc + 180);
+  const icAngleNatal = lonToAngleDeg(icLon, chart.asc);
+  const icAngleHero = orbitalPreviewTargetAngle(icLon, chart.asc);
+  assert.ok(Math.abs(icAngleNatal - icAngleHero) < 1e-9);
+  assert.ok(Math.sin((icAngleNatal * Math.PI) / 180) > 0, 'IC must be in bottom hemisphere (positive sin)');
+
+  // Sun (3° Cancer) at 01:14 AM is underground / subterranean (night hemisphere, positive sin)
+  const sun = chart.planets.find((pl) => pl.id === 'sun');
+  const sunAngle = lonToAngleDeg(sun.lon, chart.asc);
+  assert.ok(Math.sin((sunAngle * Math.PI) / 180) > 0, 'Sun at 01:14 AM is below horizon (bottom half)');
+
+  // Mars (19° Sagittarius) is in diurnal hemisphere (day sky, negative sin)
+  const mars = chart.planets.find((pl) => pl.id === 'mars');
+  const marsAngle = lonToAngleDeg(mars.lon, chart.asc);
+  assert.ok(Math.sin((marsAngle * Math.PI) / 180) < 0, 'Mars is above horizon in the sky (top half)');
+
+  // Gemini planets (Jupiter, Saturn, Mercury) and Taurus (Venus) are all below horizon
+  for (const pid of ['jupiter', 'saturn', 'mercury', 'venus']) {
+    const pl = chart.planets.find((p) => p.id === pid);
+    const angle = lonToAngleDeg(pl.lon, chart.asc);
+    assert.ok(
+      Math.sin((angle * Math.PI) / 180) > 0,
+      `${pid} (${pl.degInSign.toFixed(1)}° in sign ${pl.sign}) must be below horizon`
+    );
+  }
+});
+
+test('Solar chart (unknownTime: true) equal-house orientation across multiple locations', () => {
+  for (const p of PRESETS) {
+    const city = cityById(p.cityId);
+    const chart = calculateNatalChart({
+      name: p.name,
+      date: p.date,
+      time: '12:00',
+      unknownTime: true,
+      lat: city.lat,
+      lng: city.lng,
+      utcOffset: city.utcOffset,
+      locationLabel: city.name,
+    });
+
+    // Sun is Ascendant
+    const sun = chart.planets.find((pl) => pl.id === 'sun');
+    assert.equal(chart.asc, sun.lon);
+    assert.equal(lonToAngleDeg(chart.asc, chart.asc), 180);
+
+    // MC is equal-house 10th cusp: Sun + 270° -> SVG angle 270° (strictly 12 o'clock)
+    const mcAngle = lonToAngleDeg(chart.mc, chart.asc);
+    assert.equal(mcAngle, 270, 'In solar chart, MC is strictly 270° (12 oclock)');
+
+    // IC is equal-house 4th cusp: Sun + 90° -> SVG angle 90° (strictly 6 o'clock)
+    const icLon = norm360(chart.mc + 180);
+    const icAngle = lonToAngleDeg(icLon, chart.asc);
+    assert.equal(icAngle, 90, 'In solar chart, IC is strictly 90° (6 oclock)');
+  }
+});
+
+test('Meridian integrity across safe planetary latitudes (-66° to +66°) and diurnal cycle', () => {
+  for (let lat = -66; lat <= 66; lat += 22) {
+    for (let hour = 0; hour < 24; hour += 4) {
+      const chart = calculateNatalChart({
+        name: 'Latitude sweep',
+        date: '2024-03-21',
+        time: `${String(hour).padStart(2, '0')}:00`,
+        unknownTime: false,
+        lat,
+        lng: 0,
+        utcOffset: 0,
+        locationLabel: 'Greenwich meridian',
+      });
+
+      const mcAngle = lonToAngleDeg(chart.mc, chart.asc);
+      const icLon = norm360(chart.mc + 180);
+      const icAngle = lonToAngleDeg(icLon, chart.asc);
+
+      // MC must always be in top hemisphere (y < cy, sin < 0)
+      const sinMc = Math.sin((mcAngle * Math.PI) / 180);
+      assert.ok(
+        sinMc < 0,
+        `lat=${lat}, hour=${hour}: MC (${mcAngle.toFixed(1)}°) must have negative sin (in sky)`
+      );
+
+      // IC must always be in bottom hemisphere (y > cy, sin > 0)
+      const sinIc = Math.sin((icAngle * Math.PI) / 180);
+      assert.ok(
+        sinIc > 0,
+        `lat=${lat}, hour=${hour}: IC (${icAngle.toFixed(1)}°) must have positive sin (underground)`
+      );
+    }
+  }
+});
+

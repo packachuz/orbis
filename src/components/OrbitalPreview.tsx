@@ -394,6 +394,29 @@ export default function OrbitalPreview({ chart, phase, selection, onSelect, focu
                 </text>
               );
             })()}
+
+            {(() => {
+              const ic = norm360(chart.mc + 180);
+              const icAngle = -(180 + ic - chart.asc);
+              const icRad = (icAngle * Math.PI) / 180;
+              const icX = C + 236 * Math.cos(icRad);
+              const icY = C + 236 * Math.sin(icRad);
+              return (
+                <text
+                  x={icX}
+                  y={icY}
+                  fill="#E5C158"
+                  fontSize="11"
+                  fontFamily="JetBrains Mono"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  opacity="0.65"
+                >
+                  IC
+                </text>
+              );
+            })()}
           </g>
 
           {/* Interactive Aspect web after lock */}
