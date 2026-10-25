@@ -68,7 +68,21 @@ export default function OrbisApp() {
   const [phase, setPhase] = useState<Phase>('ambient');
   const [selection, setSelection] = useState<Selection>(null);
   const [aspectFilter, setAspectFilter] = useState<AspectType | 'all'>('all');
+  const [targetYear, setTargetYear] = useState<number>(2026);
+  const [targetMonth, setTargetMonth] = useState<number>(9); // 0-indexed: 9 = October
   const timer = useRef<number | undefined>(undefined);
+
+  const handleDateChange = useCallback((year: number, month: number) => {
+    const clampedYear = Math.max(2024, Math.min(2032, year));
+    const clampedMonth = Math.max(0, Math.min(11, month));
+    setTargetYear(clampedYear);
+    setTargetMonth(clampedMonth);
+  }, []);
+
+  const handleResetDate = useCallback(() => {
+    setTargetYear(2026);
+    setTargetMonth(9);
+  }, []);
 
   // First-load ritual: ambient orbit, then lock into the default chart.
   useEffect(() => {
@@ -185,6 +199,10 @@ export default function OrbisApp() {
             onSelect={setSelection}
             onFocus={focusOnWheel}
             focusOnWheel={focusOnWheel}
+            targetYear={targetYear}
+            targetMonth={targetMonth}
+            onDateChange={handleDateChange}
+            onResetDate={handleResetDate}
           />
         </section>
 
@@ -201,6 +219,8 @@ export default function OrbisApp() {
             onSelect={setSelection}
             onFocus={focusOnWheel}
             focusOnWheel={focusOnWheel}
+            targetYear={targetYear}
+            targetMonth={targetMonth}
           />
         </section>
       </main>

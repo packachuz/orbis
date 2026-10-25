@@ -11,7 +11,9 @@ import {
 } from '@/lib/astroEngine';
 import { buildRemedies } from '@/lib/horoscopeEngine';
 import { synthesizeChart } from '@/lib/astroSynthesis';
-import { PLANET_LORE } from '@/lib/zodiacData';
+import { computePredictiveProfection } from '@/lib/predictiveEngine';
+import { HOUSE_LORE, PLANET_LORE } from '@/lib/zodiacData';
+import { MONTH_NAMES } from './TimeMachineScrubber';
 import { PlanetGlyph } from './svg/AstroGlyphs';
 import type { Selection } from './OrbisApp';
 import {
@@ -31,7 +33,12 @@ interface Props {
   onSelect?: (sel: Selection) => void;
   onFocus?: (sel: Selection) => void;
   focusOnWheel?: (sel: Selection) => void;
+  targetYear?: number;
+  targetMonth?: number;
 }
+
+const WEEKDAY_RULER: Record<PlanetId, number> = { sun: 0, moon: 1, mars: 2, mercury: 3, jupiter: 4, venus: 5, saturn: 6 };
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const REMEDY_ICONS: Record<string, React.ReactNode> = {
   power: <Zap size={18} className="text-gold" />,
@@ -116,9 +123,42 @@ const PLANET_ACTION_PROTOCOLS: Record<
   },
 };
 
-export default function OrbisAlignmentRemedies({ chart, selection, onSelect, onFocus, focusOnWheel }: Props) {
-  const synthesis = useMemo(() => synthesizeChart(chart, 2026), [chart]);
-  const remedies = useMemo(() => buildRemedies(chart, new Date(), synthesis), [chart, synthesis]);
+export default function OrbisAlignmentRemedies({
+  chart,
+  selection,
+  onSelect,
+  onFocus,
+  focusOnWheel,
+  targetYear = 2026,
+  targetMonth = 9,
+}: Props) {
+  const synthesis = useMemo(() => synthesizeChart(chart, targetYear), [chart, targetYear]);
+  const prof = useMemo(() => computePredictiveProfection(chart, targetYear, targetMonth), [chart, targetYear, targetMonth]);
+  const remedies = useMemo(() => {
+    const list = buildRemedies(chart, new Date(), synthesis);
+    return list.map((rem) => {
+      if (rem.id === 'timing') {
+        const annualTL = PLANET_LORE[prof.annualTimeLord];
+        const monthlyTL = PLANET_LORE[prof.monthlyTimeLord];
+        const tlDay = WEEKDAY_RULER[prof.annualTimeLord];
+        const monthName = MONTH_NAMES[targetMonth];
+        return {
+          ...rem,
+          title: `Time-Lord Strategic Ritual (${targetYear})`,
+          telemetry: `${annualTL.name} · ${ordinal(prof.annualHouse)}H (${prof.annualSignName})`,
+          headline: `Align with your ${targetYear} Time-Lord: ${annualTL.name} & Monthly Guide: ${monthlyTL.name}.`,
+          body: `In your age-${prof.age} profection, ${annualTL.name} holds the temporal keys. Natal dignity: ${prof.annualDignity.label} in ${prof.annualDignity.signName} (${prof.annualDignity.symbol}). For ${monthName} ${targetYear}, ${monthlyTL.name} directs your monthly sub-chapter in the ${ordinal(prof.monthlyHouse)} House of ${HOUSE_LORE[prof.monthlyHouse - 1].domain}. Focus on ${HOUSE_LORE[prof.annualHouse - 1].domain} to maximize cosmic resonance.`,
+          steps: [
+            `Dedicate your key weekly planning to ${WEEKDAYS[tlDay]} (${annualTL.name}'s classical day).`,
+            `Audit and advance your ${ordinal(prof.annualHouse)} house priorities (${HOUSE_LORE[prof.annualHouse - 1].domain}).`,
+            `Coordinate ${monthName}'s tactical execution with ${monthlyTL.name} in your ${ordinal(prof.monthlyHouse)} house.`,
+          ],
+          footer: `Active Time-Lord: ${annualTL.name} (${WEEKDAYS[tlDay]}) · ${monthName} ${targetYear} Chapter`,
+        };
+      }
+      return rem;
+    });
+  }, [chart, synthesis, prof, targetYear, targetMonth]);
   const handleFocus = focusOnWheel ?? onFocus;
 
   // Determine the weakest and strongest elements in the chart
@@ -145,8 +185,17 @@ export default function OrbisAlignmentRemedies({ chart, selection, onSelect, onF
         return { id: 'power', badge: '★ Dominant Orb Power Move' };
       }
       // 2. Time-Lord Sovereign Protocol
-      if (pid === synthesis.profection2026.timeLord) {
-        return { id: 'timing', badge: '★ 2026 Time-Lord Sovereign Protocol' };
+      if (pid === prof.annualTimeLord) {
+        return {
+          id: 'timing',
+          badge: targetYear === 2026 ? '★ 2026 Time-Lord Sovereign Protocol' : `★ ${targetYear} Time-Lord Sovereign Protocol`,
+        };
+      }
+      if (pid === prof.monthlyTimeLord) {
+        return {
+          id: 'timing',
+          badge: `★ ${MONTH_NAMES[targetMonth]} Monthly Time-Lord Protocol`,
+        };
       }
       // 3. Mercury Signal Timing
       if (pid === 'mercury') {
@@ -191,7 +240,12 @@ export default function OrbisAlignmentRemedies({ chart, selection, onSelect, onF
       if (selection.type === 'square' || selection.type === 'opposition') {
         return { id: 'shadow', badge: '★ Active Tension Resolution' };
       }
-      if (selection.a === synthesis.profection2026.timeLord || selection.b === synthesis.profection2026.timeLord) {
+      if (
+        selection.a === prof.annualTimeLord ||
+        selection.b === prof.annualTimeLord ||
+        selection.a === prof.monthlyTimeLord ||
+        selection.b === prof.monthlyTimeLord
+      ) {
         return { id: 'timing', badge: '★ Time-Lord Aligned Chord' };
       }
       if (selection.type === 'trine' || selection.type === 'sextile' || selection.type === 'conjunction') {
@@ -201,7 +255,7 @@ export default function OrbisAlignmentRemedies({ chart, selection, onSelect, onF
     }
 
     return null;
-  }, [selection, tightestAspect, synthesis, chart.aspects, chart.planets, lowestElement, highestElement]);
+  }, [selection, tightestAspect, synthesis, prof, targetYear, targetMonth, chart.aspects, chart.planets, lowestElement, highestElement]);
 
   const getRemedySpotlight = (remId: string): { isSpotlighted: boolean; badge: string } => {
     if (!activeRemedyMatch) return { isSpotlighted: false, badge: '' };

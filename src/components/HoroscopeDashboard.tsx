@@ -25,9 +25,20 @@ import {
   type LunarPhaseKey,
   synthesizeChart,
 } from '@/lib/astroSynthesis';
+import {
+  computeExactSolarReturn,
+  computeHellenisticLots,
+  computePredictiveConvergence,
+  computePredictiveProfection,
+  computeSecondaryProgressions,
+  classifyEclipsesAndReturns,
+} from '@/lib/predictiveEngine';
 import { PLANET_LORE } from '@/lib/zodiacData';
 import { PlanetGlyph, ZodiacGlyph } from './svg/AstroGlyphs';
 import type { Selection } from './OrbisApp';
+import TimeMachineScrubber from './TimeMachineScrubber';
+import ConvergencePanel from './ConvergencePanel';
+import PredictiveClocksGrid from './PredictiveClocksGrid';
 import {
   ArrowRightLeft,
   Briefcase,
@@ -50,6 +61,10 @@ interface Props {
   onSelect?: (sel: Selection) => void;
   onFocus?: (sel: Selection) => void;
   focusOnWheel?: (sel: Selection) => void;
+  targetYear?: number;
+  targetMonth?: number;
+  onDateChange?: (year: number, month: number) => void;
+  onResetDate?: () => void;
 }
 
 type TabKey = 'love' | 'career' | 'profection' | 'forecast';
@@ -114,25 +129,46 @@ export function LunarPhaseIcon({ phase, size = 26 }: { phase: LunarPhaseKey; siz
   }
 }
 
-export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus, focusOnWheel }: Props) {
+export default function HoroscopeDashboard({
+  chart,
+  selection,
+  onSelect,
+  onFocus,
+  focusOnWheel,
+  targetYear = 2026,
+  targetMonth = 9,
+  onDateChange,
+  onResetDate,
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('love');
   const [transitFilterFocusedOnly, setTransitFilterFocusedOnly] = useState(false);
   const handleFocus = focusOnWheel ?? onFocus;
 
-  // Master Astrological Synthesis (Sect, Dignities, Receptions, Phase, Patterns, Profection)
-  const synthesis: AstroSynthesis = useMemo(() => synthesizeChart(chart, 2026), [chart]);
+  const currentYear = targetYear;
+  const currentMonth = targetMonth;
 
-  // Compute 2026 transit overlay (current reference time: October 2026)
+  // Master Astrological Synthesis (Sect, Dignities, Receptions, Phase, Patterns, Profection)
+  const synthesis: AstroSynthesis = useMemo(() => synthesizeChart(chart, currentYear), [chart, currentYear]);
+
+  // Compute dynamic transit overlay for target year and month
   const forecast = useMemo(() => {
-    return buildForecast(chart, 2026, 9); // Month 9 is October (0-indexed)
-  }, [chart]);
+    return buildForecast(chart, currentYear, currentMonth);
+  }, [chart, currentYear, currentMonth]);
+
+  // Four-Clock Deterministic Calculations & Rule of Three Convergence
+  const convergence = useMemo(() => computePredictiveConvergence(chart, currentYear, currentMonth), [chart, currentYear, currentMonth]);
+  const progressions = useMemo(() => computeSecondaryProgressions(chart, currentYear, currentMonth), [chart, currentYear, currentMonth]);
+  const solarReturn = useMemo(() => computeExactSolarReturn(chart, currentYear), [chart, currentYear]);
+  const lots = useMemo(() => computeHellenisticLots(chart), [chart]);
+  const profection = useMemo(() => computePredictiveProfection(chart, currentYear, currentMonth), [chart, currentYear, currentMonth]);
+  const eclipsesAndReturns = useMemo(() => classifyEclipsesAndReturns(chart, currentYear, currentMonth), [chart, currentYear, currentMonth]);
 
   const triad = useMemo(() => buildTriad(chart, synthesis), [chart, synthesis]);
   const loveReading = useMemo(() => buildLove(chart, forecast, synthesis), [chart, forecast, synthesis]);
   const careerReading = useMemo(() => buildCareer(chart, forecast, synthesis), [chart, forecast, synthesis]);
   const profectionReading = useMemo(() => buildProfectionReading(chart, forecast, synthesis), [chart, forecast, synthesis]);
 
-  const { sect, lunarPhase, dignities, mutualReceptions, patterns, profection2026 } = synthesis;
+  const { sect, lunarPhase, dignities, mutualReceptions, patterns } = synthesis;
 
   const isEventAffectingSelection = (ev: ForecastEvent) => {
     if (!selection) return false;
@@ -170,7 +206,7 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
   const recommendedTab = useMemo<TabKey | null>(() => {
     if (!selection) return null;
     if (selection.kind === 'planet') {
-      if (selection.id === profection2026.timeLord) return 'profection';
+      if (selection.id === profection.annualTimeLord || selection.id === profection.monthlyTimeLord) return 'profection';
       if (selection.id === 'venus' || selection.id === 'mars') return 'love';
       if (selection.id === 'sun' || selection.id === 'saturn') return 'career';
       const hasTransit = forecast.events.some(isEventAffectingSelection);
@@ -178,7 +214,13 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
       return null;
     }
     if (selection.kind === 'aspect') {
-      if (selection.a === profection2026.timeLord || selection.b === profection2026.timeLord) return 'profection';
+      if (
+        selection.a === profection.annualTimeLord ||
+        selection.b === profection.annualTimeLord ||
+        selection.a === profection.monthlyTimeLord ||
+        selection.b === profection.monthlyTimeLord
+      )
+        return 'profection';
       if (selection.a === 'venus' || selection.b === 'venus' || selection.a === 'mars' || selection.b === 'mars')
         return 'love';
       if (selection.a === 'sun' || selection.b === 'sun' || selection.a === 'saturn' || selection.b === 'saturn')
@@ -186,7 +228,7 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
       return 'forecast';
     }
     return null;
-  }, [selection, profection2026.timeLord, forecast.events]);
+  }, [selection, profection.annualTimeLord, profection.monthlyTimeLord, forecast.events]);
 
   // Steer active tab automatically whenever selection changes
   useEffect(() => {
@@ -220,6 +262,25 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
 
   return (
     <div className="mt-12 space-y-16">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* INTERACTIVE TIME-MACHINE SCRUBBER                             */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <TimeMachineScrubber
+        targetYear={currentYear}
+        targetMonth={currentMonth}
+        onDateChange={onDateChange ?? (() => {})}
+        onResetDate={onResetDate ?? (() => {})}
+        age={profection.age}
+        annualTimeLord={profection.annualTimeLordName}
+        annualHouse={profection.annualHouse}
+        monthlyTimeLord={profection.monthlyTimeLordName}
+        monthlyHouse={profection.monthlyHouse}
+        progressedMoonSignName={SIGN_NAMES[progressions.progressedMoon.sign]}
+        progressedMoonDeg={progressions.progressedMoon.degInSign}
+        progressedMoonPhaseName={progressions.lunarPhase.name}
+        convergenceCount={convergence.topConvergences.length}
+      />
+
       {/* ───────────────────────────────────────────────────────────── */}
       {/* ACTIVE ORBIS ALIGNMENT SPOTLIGHT HUD                          */}
       {/* ───────────────────────────────────────────────────────────── */}
@@ -402,6 +463,33 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
           })()}
         </div>
       )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* RULE OF THREE CONVERGENCE SCORING PANEL                       */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <ConvergencePanel
+        convergence={convergence}
+        chart={chart}
+        selection={selection}
+        onSelect={onSelect}
+        focusOnWheel={handleFocus}
+      />
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* FOUR-CLOCK DEDICATED PREDICTIVE PANELS HUD                    */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <PredictiveClocksGrid
+        chart={chart}
+        progressions={progressions}
+        solarReturn={solarReturn}
+        lots={lots}
+        profection={profection}
+        eclipsesAndReturns={eclipsesAndReturns}
+        selection={selection}
+        onSelect={onSelect}
+        focusOnWheel={handleFocus}
+      />
+
       {/* ───────────────────────────────────────────────────────────── */}
       {/* PART A0: SECT LIGHT & NATAL LUNAR PHASE MODULE                */}
       {/* ───────────────────────────────────────────────────────────── */}
@@ -855,7 +943,7 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
             }`}
           >
             <Hourglass size={15} />
-            <span>3. Annual Profection & Time-Lord (2026 Chapter)</span>
+            <span>3. Annual & Monthly Profections ({currentYear} Chapter)</span>
             {recommendedTab === 'profection' && (
               <span className="ml-1 rounded-full bg-gold/20 px-2 py-0.5 font-mono text-[9px] font-bold text-gold border border-gold/40 animate-pulse">
                 ✦ Aligned
@@ -875,7 +963,7 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
             }`}
           >
             <Calendar size={15} />
-            <span>4. Monthly Cosmic Forecast (2026 Transit Overlay)</span>
+            <span>4. Monthly Cosmic Forecast ({forecast.monthLabel} Overlay)</span>
             {recommendedTab === 'forecast' && (
               <span className="ml-1 rounded-full bg-gold/20 px-2 py-0.5 font-mono text-[9px] font-bold text-gold border border-gold/40 animate-pulse">
                 ✦ Aligned
@@ -968,10 +1056,10 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
             <div className="glass p-6">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold">
-                  Hellenistic Annual Profection Chapter · Year {profection2026.year}
+                  Hellenistic Annual Profection Chapter · Year {currentYear}
                 </span>
                 <span className="rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-gold">
-                  Age {profection2026.age} · {ordinal(profection2026.profectedHouse)} House
+                  Age {profection.age} · {ordinal(profection.annualHouse)} House ({profection.annualSignName})
                 </span>
               </div>
               <h4 className="mt-2 font-serif text-2xl font-semibold text-silver">
@@ -989,6 +1077,45 @@ export default function HoroscopeDashboard({ chart, selection, onSelect, onFocus
                   <p className="mt-3 text-xs leading-relaxed text-slate-300">{sec.body}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Monthly Sub-Chapter Card */}
+            <div className="glass-strong rounded-2xl border border-sky-400/30 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Hourglass size={15} className="text-sky-400" />
+                  <span className="font-mono text-[10.5px] uppercase tracking-[0.2em] text-sky-400">
+                    Monthly Profection Sub-Chapter · {forecast.monthLabel}
+                  </span>
+                </div>
+                <span className="rounded-full border border-sky-400/40 bg-sky-400/10 px-2.5 py-0.5 font-mono text-[10px] text-sky-300 font-semibold">
+                  {ordinal(profection.monthlyHouse)} House · {profection.monthlySignName}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PlanetGlyph planet={profection.monthlyTimeLord} size={16} color={PLANET_LORE[profection.monthlyTimeLord].color} />
+                  <span className="font-serif text-base font-bold text-silver">
+                    Monthly Time-Lord: {profection.monthlyTimeLordName}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-400">
+                    ({profection.monthlyDignity.label})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect?.({ kind: 'planet', id: profection.monthlyTimeLord });
+                    handleFocus?.({ kind: 'planet', id: profection.monthlyTimeLord });
+                  }}
+                  className="rounded-full border border-sky-400/40 bg-sky-400/10 px-2.5 py-0.5 font-mono text-[9px] text-sky-300 hover:bg-sky-400/20"
+                >
+                  Inspect on Wheel
+                </button>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                In Hellenistic astrology, profections advance sequentially by 1 Whole-Sign house per month from your solar return birthday. During {forecast.monthLabel}, {profection.monthlyTimeLordName} acts as your tactical Monthly Time-Lord directing the affairs of your {ordinal(profection.monthlyHouse)} House.
+              </p>
             </div>
 
             {/* Annual Time-Lord Strategic Action Box */}

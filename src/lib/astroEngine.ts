@@ -135,7 +135,7 @@ export const orbStrength = (orb: number): OrbStrength =>
 export const jdFromDate = (d: Date) => d.getTime() / 86400000 + 2440587.5;
 export const dateFromJd = (jd: number) => new Date((jd - 2440587.5) * 86400000);
 /** Schlyter day number (epoch 2000 Jan 0.0 TT ≈ UT). */
-const dayNumber = (jd: number) => jd - 2451543.5;
+export const dayNumber = (jd: number) => jd - 2451543.5;
 
 /** Convert local civil date/time + UTC offset into a UTC Date. */
 export function localToUtc(date: string, time: string, utcOffset: number): Date {
@@ -304,6 +304,45 @@ export function bodyState(id: PlanetId, jd: number) {
   const lon = geocentricLongitude(id, d);
   const speed = angDiff(geocentricLongitude(id, d - 0.5), geocentricLongitude(id, d + 0.5));
   return { lon, speed, retrograde: speed < 0 };
+}
+
+export interface LunarNodes {
+  jd: number;
+  meanNorth: number;
+  meanSouth: number;
+  trueNorth: number;
+  trueSouth: number;
+  signNorth: number;
+  signSouth: number;
+}
+
+/** Compute Mean and True Lunar Nodes for a given Julian Day. */
+export function lunarNodes(jd: number): LunarNodes {
+  const d = dayNumber(jd);
+  const meanNorth = norm360(125.1228 - 0.0529538083 * d);
+  const meanSouth = norm360(meanNorth + 180);
+
+  const sun = sunState(d);
+  const el = orbitalElements('moon', d);
+  const Ms = sun.M;
+  const Ls = Ms + sun.w;
+  const Lm = el.M + el.w + el.N;
+  const D = Lm - Ls;
+  const F = Lm - el.N;
+
+  const deltaN = -1.4979 * sind(2 * (D - F)) - 0.1500 * sind(Ms) - 0.1226 * sind(2 * D);
+  const trueNorth = norm360(meanNorth + deltaN);
+  const trueSouth = norm360(trueNorth + 180);
+
+  return {
+    jd,
+    meanNorth,
+    meanSouth,
+    trueNorth,
+    trueSouth,
+    signNorth: signOf(meanNorth),
+    signSouth: signOf(meanSouth),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -493,6 +532,10 @@ export interface Lunation {
   date: Date;
   lon: number;
   house: number;
+  isEclipse?: boolean;
+  eclipseType?: 'Solar Eclipse' | 'Lunar Eclipse';
+  category?: 'Total / Central' | 'Partial / Nodal';
+  nodeDistance?: number;
 }
 
 export interface Station {
@@ -594,7 +637,23 @@ export function computeMonthTransits(chart: NatalChart, year: number, month: num
       const frac = (target - prevE) / (e1 - prevE);
       const jdx = jd - step + frac * step;
       const lon = crossNew ? bodyState('sun', jdx).lon : bodyState('moon', jdx).lon;
-      lunations.push({ kind: crossNew ? 'new' : 'full', date: dateFromJd(jdx), lon, house: houseOf(lon, chart.cusps) });
+      const nodes = lunarNodes(jdx);
+      const distN = separation(lon, nodes.meanNorth);
+      const distS = separation(lon, nodes.meanSouth);
+      const nodeDistance = Math.min(distN, distS);
+      const isEclipse = nodeDistance <= 18.0;
+      const eclipseType = isEclipse ? (crossNew ? 'Solar Eclipse' : 'Lunar Eclipse') : undefined;
+      const category = isEclipse ? (nodeDistance <= 10.0 ? 'Total / Central' : 'Partial / Nodal') : undefined;
+      lunations.push({
+        kind: crossNew ? 'new' : 'full',
+        date: dateFromJd(jdx),
+        lon,
+        house: houseOf(lon, chart.cusps),
+        isEclipse,
+        eclipseType,
+        category,
+        nodeDistance,
+      });
     }
     prevE = e;
   }
